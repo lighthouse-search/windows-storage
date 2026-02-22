@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag (e.g. v1.0.0)"
+        required: true
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+          releaseName: "Disk Space Analyzer ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}"
+          releaseBody: |
+            ## Disk Space Analyzer
+
+            Download the installer below to get started.
+
+            | File | Description |
+            |------|-------------|
+            | `*-setup.exe` | NSIS installer (recommended) |
+            | `*.msi` | MSI installer |
+            | `*.exe` (no "setup") | Portable executable — no install needed |
+
+            ### Changes
+            _See commits since the previous release._
+          releaseDraft: false
+          prerelease: false
